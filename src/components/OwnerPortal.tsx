@@ -167,33 +167,7 @@ export default function OwnerPortal() {
     navigate('/admin/dashboard');
   };
 
-  // Admin pre-registration/seeding on boot
-  useEffect(() => {
-    async function seedAdmin() {
-      try {
-        const adminEmail = 'jessicahair60@gmail.com';
-        const existing = await getUserProfileByEmail(adminEmail);
-        if (!existing) {
-          const newAdminUser: AppUser = {
-            id: 'admin_jessicahair',
-            email: adminEmail,
-            name: 'Jessica Hair',
-            role: 'admin',
-            password: '32371067',
-            planId: 'plan_pro',
-            status: 'active',
-            expiresAt: '2026-12-31T23:59:59',
-            autoRenew: true
-          };
-          await saveUserProfile(newAdminUser);
-          console.log('Seeded master admin successfully!');
-        }
-      } catch (err) {
-        console.warn('Silent seeding notice:', err);
-      }
-    }
-    seedAdmin();
-  }, []);
+  // Removed seedAdmin useEffect
 
   useEffect(() => {
     async function checkAuth() {
@@ -203,6 +177,11 @@ export default function OwnerPortal() {
       if (savedUserStr) {
         try {
           activeProfile = JSON.parse(savedUserStr) as AppUser;
+          // Force logout for restricted users who were previously master or admin
+          if (activeProfile && (activeProfile.email === 'studiojr079@gmail.com' || activeProfile.email === 'jessicahair60@gmail.com') && (activeProfile.role === 'master' || activeProfile.role === 'admin')) {
+            localStorage.removeItem('portal_user');
+            activeProfile = null;
+          }
         } catch (e) {
           console.error('Error loading fallback user:', e);
         }
@@ -244,6 +223,21 @@ export default function OwnerPortal() {
             console.log('OwnerPortal useEffect: Store data not found for storeId:', activeProfile.storeId);
             setStore(INITIAL_STORE);
           }
+        } else {
+          // User has no storeId, load default store data
+          setStore(INITIAL_STORE);
+          const [prods, cats, ords, anls, notifs] = await Promise.all([
+            getProducts(INITIAL_STORE.id),
+            getCategories(INITIAL_STORE.id),
+            getOrders(INITIAL_STORE.id),
+            getAnalytics(INITIAL_STORE.id),
+            getNotifications(INITIAL_STORE.id)
+          ]);
+          setProducts(prods);
+          setCategories(cats);
+          setOrders(ords);
+          setAnalytics(anls || getEmptyAnalytics(INITIAL_STORE.id));
+          setNotifications(notifs);
         }
       } else {
         setUser(null);
@@ -258,8 +252,18 @@ export default function OwnerPortal() {
   const activeTab = pathParts[pathParts.length - 1] || 'dashboard';
 
   const handleSaveStore = async (updatedStore: Store) => {
-    setStore(updatedStore);
-    await saveStore(updatedStore);
+    if (impersonatedStore) {
+      setImpersonatedStore(updatedStore);
+    } else {
+      setStore(updatedStore);
+    }
+    try {
+      await saveStore(updatedStore);
+      toast.success('Configurações da loja salvas com sucesso!');
+    } catch (err) {
+      console.error('Error saving store:', err);
+      toast.error('Erro ao salvar as configurações da loja.');
+    }
   };
 
   const handleSaveProduct = async (updatedProduct: Product) => {
@@ -296,9 +300,10 @@ export default function OwnerPortal() {
     if (confirm('Deseja realmente deletar este produto?')) {
       const updated = products.filter(p => p.id !== id);
       setProducts(updated);
-      if (store) {
+      const activeStore = impersonatedStore || store;
+      if (activeStore) {
         try {
-          await dbDeleteProduct(store.id, id);
+          await dbDeleteProduct(activeStore.id, id);
           toast.success('Produto excluído com sucesso.');
         } catch (e) {
           toast.error('Erro ao excluir produto.');
@@ -317,9 +322,10 @@ export default function OwnerPortal() {
       updated = [...categories, updatedCategory];
     }
     setCategories(updated);
-    if (store) {
+    const activeStore = impersonatedStore || store;
+    if (activeStore) {
       try {
-        await saveCategory(updatedCategory);
+        await saveCategory(updatedCategory, exists);
         toast.success(exists ? 'Categoria atualizada com sucesso.' : 'Categoria salva com sucesso.');
       } catch (e) {
         toast.error('Erro ao salvar categoria.');
@@ -340,14 +346,15 @@ export default function OwnerPortal() {
       });
       setProducts(updatedProds);
       
-      if (store) {
+      const activeStore = impersonatedStore || store;
+      if (activeStore) {
         try {
-          await dbDeleteCategory(store.id, id);
+          await dbDeleteCategory(activeStore.id, id);
           toast.success('Categoria excluída com sucesso.');
           // Also update products in firestore
           for (const prod of updatedProds) {
             if (prod.categoryId === defaultId) {
-               await saveProduct({ ...prod, storeId: store.id });
+               await saveProduct({ ...prod, storeId: activeStore.id });
             }
           }
         } catch (e) {
@@ -360,7 +367,8 @@ export default function OwnerPortal() {
 
   const handleReorderCategories = async (updatedCats: Category[]) => {
     setCategories(updatedCats);
-    if (store) {
+    const activeStore = impersonatedStore || store;
+    if (activeStore) {
       for (const cat of updatedCats) {
         await saveCategory(cat);
       }
@@ -374,7 +382,8 @@ export default function OwnerPortal() {
     });
     setOrders(updated);
     
-    if (store) {
+    const activeStore = impersonatedStore || store;
+    if (activeStore) {
       const updatedOrder = updated.find(o => o.id === orderId);
       if (updatedOrder) {
         await saveOrder(updatedOrder);
@@ -400,10 +409,27 @@ export default function OwnerPortal() {
   const handleLoginSuccess = async (loggedInUser: AppUser) => {
     setUser(loggedInUser);
     localStorage.setItem('portal_user', JSON.stringify(loggedInUser));
+    let currentStore = INITIAL_STORE;
     if (loggedInUser.storeId) {
        const storeData = await getStoreById(loggedInUser.storeId);
-       setStore(storeData);
+       if (storeData) currentStore = storeData;
     }
+    setStore(currentStore);
+    
+    // Fetch and set data right after login
+    const [prods, cats, ords, anls, notifs] = await Promise.all([
+      getProducts(currentStore.id),
+      getCategories(currentStore.id),
+      getOrders(currentStore.id),
+      getAnalytics(currentStore.id),
+      getNotifications(currentStore.id)
+    ]);
+    setProducts(prods);
+    setCategories(cats);
+    setOrders(ords);
+    setAnalytics(anls || getEmptyAnalytics(currentStore.id));
+    setNotifications(notifs);
+
     navigate('/admin/dashboard');
   };
 
@@ -421,7 +447,8 @@ export default function OwnerPortal() {
   const handleDismissNotification = async (id: string) => {
     const updated = notifications.map(n => n.id === id ? { ...n, read: true } : n);
     setNotifications(updated);
-    if (store) {
+    const activeStore = impersonatedStore || store;
+    if (activeStore) {
       const updatedNotif = updated.find(n => n.id === id);
       if (updatedNotif) {
         await saveNotification(updatedNotif);
@@ -461,7 +488,7 @@ export default function OwnerPortal() {
     );
   }
   
-  if (user && user.role === 'admin' && !impersonatedStore && adminViewMode === 'master') {
+  if (user && (user.role === 'admin' || user.role === 'master') && !impersonatedStore && adminViewMode === 'master') {
     return (
       <MasterPortal 
         user={user} 
@@ -514,7 +541,6 @@ export default function OwnerPortal() {
             <ProductsManagement
               products={products}
               categories={categories}
-              onSaveProduct={handleSaveProduct}
               onDeleteProduct={handleDeleteProduct}
               onReorderProducts={async (newProducts) => {
                 setProducts(newProducts);
@@ -525,6 +551,11 @@ export default function OwnerPortal() {
                 }
               }}
               storeId={safeStore.id}
+              onRefresh={async () => {
+                // Refetch products
+                const prods = await getProducts(safeStore.id);
+                setProducts(prods);
+              }}
             />
           } />
           <Route path="categories" element={

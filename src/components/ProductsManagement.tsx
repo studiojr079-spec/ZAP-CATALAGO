@@ -6,24 +6,25 @@
 import React, { useState } from 'react';
 import { ShoppingBag, Search, Plus, Trash2, Edit2, Check, X, Star, Eye, EyeOff, Image, Upload, Video, Layers, Copy, ArrowUp, ArrowDown } from 'lucide-react';
 import { Product, Category } from '../types';
-import ImageUpload from './ImageUpload';
+import { LocalDatabase } from '../lib/initialData';
+import { toast } from 'sonner';
 
 interface ProductsManagementProps {
   products: Product[];
   categories: Category[];
-  onSaveProduct: (product: Product) => void;
-  onDeleteProduct: (id: string) => void;
+  onDeleteProduct: (id: string) => void; // Still needed for UI update
   onReorderProducts?: (products: Product[]) => void;
   storeId?: string;
+  onRefresh: () => void;
 }
 
 export default function ProductsManagement({
   products,
   categories,
-  onSaveProduct,
   onDeleteProduct,
   onReorderProducts,
-  storeId
+  storeId,
+  onRefresh
 }: ProductsManagementProps) {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isAdding, setIsAdding] = useState(false);
@@ -41,10 +42,11 @@ export default function ProductsManagement({
   const [featured, setFeatured] = useState(false);
   const [hidden, setHidden] = useState(false);
   const [showPrice, setShowPrice] = useState(true);
-  const [images, setImages] = useState<string[]>([]);
-  const [imageUrlInput, setImageUrlInput] = useState('');
-  const [video, setVideo] = useState('');
+  const [images, setImages] = useState<File[]>([]);
+  const [existingImages, setExistingImages] = useState<string[]>([]);
+  const [video, setVideo] = useState<File | null>(null);
   const [fileError, setFileError] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   const sortedProducts = [...products].sort((a, b) => (a.order || 0) - (b.order || 0));
 
@@ -67,8 +69,9 @@ export default function ProductsManagement({
     setFeatured(product.featured);
     setHidden(product.hidden);
     setShowPrice(product.showPrice ?? true);
-    setImages(product.images);
-    setVideo(product.video || '');
+    setExistingImages(product.images);
+    setImages([]);
+    setVideo(null);
     setFileError('');
   };
 
@@ -86,12 +89,13 @@ export default function ProductsManagement({
     setFeatured(false);
     setHidden(false);
     setShowPrice(true);
-    setImages(['https://images.unsplash.com/photo-1580618672591-eb180b1a973f?w=600&auto=format&fit=crop&q=80']); // Initial beautiful default
-    setVideo('');
+    setImages([]);
+    setExistingImages([]);
+    setVideo(null);
     setFileError('');
   };
 
-  const handleDuplicate = (product: Product) => {
+  const handleDuplicate = async (product: Product) => {
     const duplicated: Product = {
       ...product,
       id: 'prod_' + Math.random().toString(36).substr(2, 9),
@@ -100,103 +104,105 @@ export default function ProductsManagement({
       views: 0,
       clicks: 0
     };
-    onSaveProduct(duplicated);
+    const formData = new FormData();
+    formData.append('productData', JSON.stringify(duplicated));
+    formData.append('existingImages', JSON.stringify(product.images));
+    await LocalDatabase.createProduct(duplicated, formData);
+    onRefresh();
   };
 
-  const moveUp = (index: number) => {
+  const moveUp = async (index: number) => {
     if (index === 0 || !onReorderProducts) return;
     const newProducts = [...sortedProducts];
     const temp = newProducts[index];
     newProducts[index] = newProducts[index - 1];
     newProducts[index - 1] = temp;
     
-    // Update order fields
-    newProducts.forEach((p, i) => {
-      p.order = i;
-    });
-    
+    newProducts.forEach((p, i) => { p.order = i; });
     onReorderProducts(newProducts);
   };
 
-  const moveDown = (index: number) => {
+  const moveDown = async (index: number) => {
     if (index === sortedProducts.length - 1 || !onReorderProducts) return;
     const newProducts = [...sortedProducts];
     const temp = newProducts[index];
     newProducts[index] = newProducts[index + 1];
     newProducts[index + 1] = temp;
     
-    // Update order fields
-    newProducts.forEach((p, i) => {
-      p.order = i;
-    });
-    
+    newProducts.forEach((p, i) => { p.order = i; });
     onReorderProducts(newProducts);
   };
 
-  const handleAddImageUrl = () => {
-    if (!imageUrlInput.trim()) return;
-    setImages([...images, imageUrlInput.trim()]);
-    setImageUrlInput('');
-  };
-
-  const removeImageUrl = (index: number) => {
+  const removeImage = (index: number) => {
     const updated = [...images];
     updated.splice(index, 1);
     setImages(updated);
   };
 
-  // Drag and Drop & Local File Upload simulation with automatic compression preview!
+  // Drag and Drop & Local File Upload
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFileError('');
     const files = e.target.files;
     if (!files || files.length === 0) return;
-
-    // Process each file to generate dataURL preview
     Array.from(files).forEach((file: any) => {
       if (!file.type.startsWith('image/')) {
         setFileError('Apenas arquivos de imagem são suportados.');
         return;
       }
-      
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          // Simulate automatic standard client-side lightweight compression!
-          const compressedDataUrl = event.target.result as string;
-          setImages((prev) => [...prev, compressedDataUrl]);
-        }
-      };
-      reader.readAsDataURL(file);
+      setImages((prev) => [...prev, file]);
     });
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
+    setIsSaving(true);
 
-    const productData: Product = {
-      id: editingProduct ? editingProduct.id : 'prod_' + Math.random().toString(36).substr(2, 9),
-      storeId: editingProduct ? editingProduct.storeId : (storeId || 'store_default'),
-      name: name.trim(),
-      categoryId: categoryId,
-      description: description.trim(),
-      price: Number(price),
-      promoPrice: promoPrice ? Number(promoPrice) : undefined,
-      length: length.trim() || undefined,
-      color: color.trim() || undefined,
-      stock: Number(stock),
-      featured: featured,
-      hidden: hidden,
-      showPrice: showPrice,
-      images: images.length > 0 ? images : ['https://images.unsplash.com/photo-1580618672591-eb180b1a973f?w=600'],
-      video: video.trim() || undefined,
-      views: editingProduct ? editingProduct.views : 0,
-      clicks: editingProduct ? editingProduct.clicks : 0
-    };
+    try {
+      const productData: Product = {
+        id: editingProduct ? editingProduct.id : 'prod_' + Math.random().toString(36).substr(2, 9),
+        storeId: editingProduct ? editingProduct.storeId : (storeId || 'store_default'),
+        name: name.trim(),
+        categoryId: categoryId,
+        description: description.trim(),
+        price: Number(price),
+        promoPrice: promoPrice ? Number(promoPrice) : undefined,
+        length: length.trim() || undefined,
+        color: color.trim() || undefined,
+        stock: Number(stock),
+        featured: featured,
+        hidden: hidden,
+        showPrice: showPrice,
+        images: [], 
+        video: undefined, 
+        views: editingProduct ? editingProduct.views : 0,
+        clicks: editingProduct ? editingProduct.clicks : 0,
+        order: editingProduct ? editingProduct.order : products.length
+      };
 
-    onSaveProduct(productData);
-    setIsAdding(false);
-    setEditingProduct(null);
+      const formData = new FormData();
+      formData.append('productData', JSON.stringify(productData));
+      images.forEach(file => formData.append('images', file));
+      formData.append('existingImages', JSON.stringify(existingImages));
+      if (video) formData.append('video', video);
+
+      if (editingProduct) {
+        await LocalDatabase.updateProduct(editingProduct.id, productData, formData);
+        toast.success('Produto atualizado com sucesso!');
+      } else {
+        await LocalDatabase.createProduct(productData, formData);
+        toast.success('Produto criado com sucesso!');
+      }
+
+      setIsAdding(false);
+      setEditingProduct(null);
+      onRefresh();
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro ao salvar produto.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -366,10 +372,10 @@ export default function ProductsManagement({
                 <div className="flex flex-wrap gap-2.5 pt-2">
                   {images.map((img, idx) => (
                     <div key={idx} className="relative w-16 h-16 rounded-xl overflow-hidden border border-pink-500/30 shrink-0">
-                      <img src={img} alt={`Preview ${idx}`} className="w-full h-full object-cover" />
+                      <img src={URL.createObjectURL(img)} alt={`Preview ${idx}`} className="w-full h-full object-cover" />
                       <button
                         type="button"
-                        onClick={() => removeImageUrl(idx)}
+                        onClick={() => removeImage(idx)}
                         className="absolute top-0.5 right-0.5 p-0.5 bg-black/60 text-white rounded-full hover:bg-black transition"
                       >
                         <X className="w-3 h-3" />
@@ -451,16 +457,28 @@ export default function ProductsManagement({
             <div className="pt-2 flex gap-3">
               <button
                 type="button"
+                disabled={isSaving}
                 onClick={() => { setIsAdding(false); setEditingProduct(null); }}
-                className="flex-1 py-3.5 rounded-2xl font-extrabold text-sm border border-white/10 text-white bg-[#181818] active:bg-[#222] transition active:scale-95"
+                className="flex-1 py-3.5 rounded-2xl font-extrabold text-sm border border-white/10 text-white bg-[#181818] active:bg-[#222] transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
-                className="flex-1 py-3.5 rounded-2xl font-extrabold text-sm bg-[#FF2D7A] text-white active:bg-pink-600 transition shadow-[0_0_20px_rgba(255,45,122,0.3)] active:scale-95"
+                disabled={isSaving}
+                className="flex-1 py-3.5 rounded-2xl font-extrabold text-sm bg-[#FF2D7A] text-white active:bg-pink-600 transition shadow-[0_0_20px_rgba(255,45,122,0.3)] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Salvar Produto
+                {isSaving ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    Salvando...
+                  </span>
+                ) : (
+                  'Salvar Produto'
+                )}
               </button>
             </div>
           </form>
@@ -505,7 +523,7 @@ export default function ProductsManagement({
                 return (
                   <div
                     key={prod.id}
-                    className="bg-gradient-to-b from-[#18121e] to-[#120c15] border border-pink-950/20 rounded-2xl p-4 flex items-center justify-between gap-4"
+                    className="bg-[#16141d] border border-white/5 rounded-3xl p-5 flex items-center justify-between gap-4"
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="w-14 h-14 rounded-xl overflow-hidden border border-pink-950/20 shrink-0 bg-[#181818]">
@@ -521,11 +539,11 @@ export default function ProductsManagement({
                         </div>
                         <div className="flex items-center gap-3 mt-1.5">
                           <span className="text-xs font-black text-pink-400">
-                            R$ {(prod.promoPrice || prod.price).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            R$ {((prod.promoPrice || prod.price) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                           </span>
                           {prod.promoPrice && (
                             <span className="text-[10px] text-[#8E8E93] line-through">
-                              R$ {prod.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              R$ {(prod.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                             </span>
                           )}
                         </div>

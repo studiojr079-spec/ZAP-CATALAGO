@@ -638,10 +638,20 @@ export default function MasterPortal({ user, onLogout, onImpersonateStore, onSwi
                       </div>
 
                       <button 
+                        onClick={() => {
+                          const owner = users.find(u => u.storeId === store.id);
+                          if (owner) onImpersonateStore(store, owner);
+                          else alert("Dono da loja não encontrado.");
+                        }}
+                        className="w-full py-3 bg-[#FF2D7A] hover:bg-[#FF2D7A]/90 text-white rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2 mb-2"
+                      >
+                        <LogIn className="w-4 h-4" /> Acessar Loja
+                      </button>
+                      <button 
                         onClick={() => handleManageStore(store)}
                         className="w-full py-3 bg-[#0D0D0D] hover:bg-[#FF2D7A]/5 active:bg-[#FF2D7A]/10 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2 border border-white/5"
                       >
-                        Gerenciar Loja
+                        Gerenciar Informações
                       </button>
                     </div>
                   )})}

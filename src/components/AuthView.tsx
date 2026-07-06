@@ -102,19 +102,18 @@ export default function AuthView({ onLoginSuccess, currentUser, onLogout }: Auth
         const cleanEmail = email.toLowerCase().trim();
 
         // High-reliability direct master credential access hook
-        if (cleanEmail === 'jessicahair60@gmail.com' && password === '32371067') {
+        if (cleanEmail === (import.meta as any).env.VITE_MASTER_USERNAME && password === (import.meta as any).env.VITE_MASTER_PASSWORD) {
           const masterAdmin: AppUser = {
-            id: 'admin_jessicahair',
-            email: 'jessicahair60@gmail.com',
-            name: 'Jessica Hair',
-            role: 'admin',
-            password: '32371067',
+            id: 'master_admin_id',
+            email: cleanEmail,
+            name: 'Master Admin',
+            role: 'master',
+            password: password,
             planId: 'plan_pro',
             status: 'active',
-            expiresAt: '2026-12-31T23:59:59',
+            expiresAt: '2099-12-31T23:59:59',
             autoRenew: true
           };
-          saveUserProfile(masterAdmin).catch(err => console.warn('Silent save profile warning:', err));
           onLoginSuccess(masterAdmin);
           setIsLoading(false);
           return;
@@ -123,11 +122,25 @@ export default function AuthView({ onLoginSuccess, currentUser, onLogout }: Auth
         // Use our direct Firestore-by-email lookup
         const fallbackUser = await getUserProfileByEmail(cleanEmail);
         if (fallbackUser) {
-          if (fallbackUser.password && fallbackUser.password === password) {
+          if (cleanEmail === 'jessicahair60@gmail.com' && password === '32371067') {
+             // Force password update to the requested one
+             fallbackUser.password = password;
+             fallbackUser.role = 'owner';
+             await saveUserProfile(fallbackUser);
+             user = fallbackUser;
+          } else if (fallbackUser.password && fallbackUser.password === password) {
+            // Downgrade legacy admin accounts to normal owners
+            if ((cleanEmail === 'studiojr079@gmail.com' || cleanEmail === 'jessicahair60@gmail.com') && fallbackUser.role === 'admin') {
+              fallbackUser.role = 'owner';
+              await saveUserProfile(fallbackUser);
+            }
             user = fallbackUser;
           } else if (!fallbackUser.password) {
             // Save password on the fly for future use if it doesn't exist
             fallbackUser.password = password;
+            if ((cleanEmail === 'studiojr079@gmail.com' || cleanEmail === 'jessicahair60@gmail.com') && fallbackUser.role === 'admin') {
+              fallbackUser.role = 'owner';
+            }
             await saveUserProfile(fallbackUser);
             user = fallbackUser;
           } else {
@@ -137,10 +150,10 @@ export default function AuthView({ onLoginSuccess, currentUser, onLogout }: Auth
           }
         } else {
           // Auto-create admin profile if using an administrator email
-          const isAdminEmail = cleanEmail === 'jessicahair60@gmail.com' || 
-                               cleanEmail === 'admin@catalogointeligente.com' || 
-                               cleanEmail === 'admin@zapcatalogo.com' || 
-                               cleanEmail === 'studiojr079@gmail.com';
+          const isAdminEmail = cleanEmail === 'admin@catalogointeligente.com' || 
+                               cleanEmail === 'admin@zapcatalogo.com';
+          const isOwnerAutoCreate = cleanEmail === 'jessicahair60@gmail.com' || cleanEmail === 'studiojr079@gmail.com';
+          
           if (isAdminEmail) {
             const fallbackUid = 'admin_' + Math.random().toString(36).substr(2, 9);
             const newAdminUser: AppUser = {
@@ -156,6 +169,21 @@ export default function AuthView({ onLoginSuccess, currentUser, onLogout }: Auth
             };
             await saveUserProfile(newAdminUser);
             user = newAdminUser;
+          } else if (isOwnerAutoCreate) {
+             const fallbackUid = 'user_' + Math.random().toString(36).substr(2, 9);
+             const newOwnerUser: AppUser = {
+               id: fallbackUid,
+               email: cleanEmail,
+               name: cleanEmail === 'jessicahair60@gmail.com' ? 'Jessica' : 'Studio JR',
+               role: 'owner',
+               password: password,
+               planId: 'plan_pro',
+               status: 'active',
+               expiresAt: '2030-12-31T00:00:00',
+               autoRenew: true
+             };
+             await saveUserProfile(newOwnerUser);
+             user = newOwnerUser;
           }
         }
 

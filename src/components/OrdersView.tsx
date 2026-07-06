@@ -120,7 +120,7 @@ export default function OrdersView({ orders, onUpdateStatus }: OrdersViewProps) 
                   <div>
                     <h4 className="text-sm font-extrabold text-white">{ord.productName}</h4>
                     <span className="text-xs font-black text-pink-400 mt-1 block">
-                      R$ {ord.productPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      R$ {(ord.productPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </span>
                   </div>
 

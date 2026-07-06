@@ -162,7 +162,7 @@ export default function AdminPanel({ onBackToDashboard }: AdminPanelProps) {
                   </div>
 
                   <div className="flex items-center gap-3">
-                    <span className="text-xs font-black text-pink-400">R$ {s.mrr.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/mês</span>
+                    <span className="text-xs font-black text-pink-400">R$ {(s.mrr || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/mês</span>
                     <button
                       onClick={() => deleteStore(s.id)}
                       className="p-2 bg-red-950/20 text-red-400 hover:bg-red-950/40 rounded-xl transition"

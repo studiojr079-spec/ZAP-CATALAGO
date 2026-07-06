@@ -178,7 +178,7 @@ export interface AppUser {
   id: string;
   email: string;
   name: string;
-  role: 'owner' | 'admin';
+  role: 'owner' | 'admin' | 'master';
   storeId?: string;
   planId?: string;
   status?: 'active' | 'expired' | 'canceled' | 'trial';

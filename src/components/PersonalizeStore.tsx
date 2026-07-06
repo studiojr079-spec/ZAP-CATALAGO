@@ -9,7 +9,7 @@ interface PersonalizeStoreProps {
   store: Store;
   products?: Product[];
   categories?: Category[];
-  onSaveStore: (store: Store) => void;
+  onSaveStore: (store: Store) => Promise<void> | void;
 }
 
 export default function PersonalizeStore({ store, products = [], categories = [], onSaveStore }: PersonalizeStoreProps) {
@@ -50,7 +50,6 @@ export default function PersonalizeStore({ store, products = [], categories = []
   const updateField = (field: keyof Store, value: any) => {
     const next = { ...formData, [field]: value };
     setFormData(next);
-    onSaveStore(next);
   };
 
   const updateNestedField = (parent: keyof Store, field: string, value: any) => {
@@ -62,19 +61,21 @@ export default function PersonalizeStore({ store, products = [], categories = []
       }
     };
     setFormData(next);
-    onSaveStore(next);
   };
 
   
   
-  const handleSave = () => {
+  const handleSave = async () => {
     setIsSaving(true);
-    setTimeout(() => {
-      onSaveStore(formData);
-      setIsSaving(false);
+    try {
+      await onSaveStore(formData);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
-    }, 400);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // Banner Editor state
@@ -179,8 +180,10 @@ export default function PersonalizeStore({ store, products = [], categories = []
         />
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent flex justify-center pb-8 z-[200]">
           <button
-            onClick={() => {
-              updateField('catalogTemplate', previewTemplate);
+            onClick={async () => {
+              const updated = { ...formData, catalogTemplate: previewTemplate };
+              setFormData(updated);
+              await onSaveStore(updated);
               setPreviewTemplate(null);
             }}
             className="bg-[#FF2D7A] text-white px-8 py-4 rounded-full font-black uppercase tracking-widest shadow-2xl active:scale-95 transition"

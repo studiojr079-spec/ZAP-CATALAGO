@@ -188,7 +188,7 @@ export default function CatalogView({ store, products, categories, onBackToDashb
     await saveNotification(newNotification);
 
     // 4. Construct WhatsApp Message URL
-    const formattedPrice = (product.promoPrice || product.price).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+    const formattedPrice = ((product.promoPrice || product.price) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
     let message = store.messageTemplate
       ? store.messageTemplate
       : 'Olá!\n\nTenho interesse no produto:\n*{productName}*\n\nValor:\n*R$ {productPrice}*\n\nPode me atender?';
@@ -241,7 +241,7 @@ export default function CatalogView({ store, products, categories, onBackToDashb
       return;
     }
 
-    const total = cartItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+    const total = cartItems.reduce((acc, item) => acc + ((item.price || 0) * item.quantity), 0);
     const formattedTotal = total.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
 
     // 1. Log analytics for the whole order
@@ -267,7 +267,7 @@ export default function CatalogView({ store, products, categories, onBackToDashb
     //Construct Message
     let message = `Olá! Gostaria de fazer um pedido:\n\n`;
     cartItems.forEach(item => {
-      message += `• *${item.quantity}x ${item.name}* - R$ ${(item.price * item.quantity).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
+      message += `• *${item.quantity}x ${item.name}* - R$ ${((item.price || 0) * item.quantity).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
     });
     message += `\n*TOTAL: R$ ${formattedTotal}*\n\nCódigo do Pedido: *${orderId}*`;
 
@@ -445,7 +445,7 @@ export default function CatalogView({ store, products, categories, onBackToDashb
                       <div className="flex-1 flex flex-col justify-between py-1">
                         <div>
                           <h4 className="text-sm font-bold line-clamp-1">{item.name}</h4>
-                          <p className="text-[#FF2D7A] font-black text-xs mt-1">R$ {item.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                          <p className="text-[#FF2D7A] font-black text-xs mt-1">R$ {(item.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                         </div>
                         <div className="flex items-center justify-between">
                           <div className="flex items-center bg-[#0D0D0D] rounded-lg p-1 gap-3">
@@ -482,7 +482,7 @@ export default function CatalogView({ store, products, categories, onBackToDashb
                 <div className="flex justify-between items-center">
                   <span className="text-[#8E8E93] font-bold text-sm">Subtotal</span>
                   <span className="text-xl font-black text-white">
-                    R$ {cartItems.reduce((acc, item) => acc + (item.price * item.quantity), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    R$ {cartItems.reduce((acc, item) => acc + ((item.price || 0) * item.quantity), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                   </span>
                 </div>
                 <button 

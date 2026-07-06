@@ -439,53 +439,125 @@ export const INITIAL_SUBSCRIPTION: UserSubscription = {
   paymentGateway: 'stripe'
 };
 
-// State Manager for persistent storage
+// State Manager for API interaction
 export class LocalDatabase {
-  static get<T>(key: string, defaultValue: T): T {
-    const data = localStorage.getItem(`cat_int_` + key);
-    if (!data) {
-      this.set(key, defaultValue);
-      return defaultValue;
-    }
-    try {
-      return JSON.parse(data);
-    } catch {
-      return defaultValue;
-    }
+  static getHeaders() {
+    const token = localStorage.getItem('token');
+    return {
+      'Authorization': token ? `Bearer ${token}` : ''
+    };
   }
 
-  static set(key: string, value: any): void {
-    localStorage.setItem(`cat_int_` + key, JSON.stringify(value));
+  static async getProducts(storeId?: string): Promise<Product[]> {
+    const url = storeId ? `/api/products?storeId=${storeId}` : '/api/products';
+    const res = await fetch(url);
+    return res.json();
   }
 
-  static init(): void {
-    this.get('user', INITIAL_USER);
-    this.get('store', INITIAL_STORE);
-    this.get('categories', INITIAL_CATEGORIES);
-    this.get('products', INITIAL_PRODUCTS);
-    this.get('orders', INITIAL_ORDERS);
-    this.get('analytics', INITIAL_ANALYTICS);
-    this.get('notifications', INITIAL_NOTIFICATIONS);
-    this.get('subscription', INITIAL_SUBSCRIPTION);
-    
-    // Also save other stores database for multi-store demonstration
-    const storesList = this.get<Store[]>('stores_list', [INITIAL_STORE]);
-    if (!storesList.some(s => s.id === INITIAL_STORE.id)) {
-      storesList.push(INITIAL_STORE);
-      this.set('stores_list', storesList);
-    }
+  static async createProduct(product: Product, formData: FormData): Promise<void> {
+    await fetch('/api/products', { 
+      method: 'POST', 
+      headers: LocalDatabase.getHeaders(),
+      body: formData 
+    });
   }
 
-  static resetToDefault(): void {
-    localStorage.removeItem('cat_int_user');
-    localStorage.removeItem('cat_int_store');
-    localStorage.removeItem('cat_int_categories');
-    localStorage.removeItem('cat_int_products');
-    localStorage.removeItem('cat_int_orders');
-    localStorage.removeItem('cat_int_analytics');
-    localStorage.removeItem('cat_int_notifications');
-    localStorage.removeItem('cat_int_subscription');
-    localStorage.removeItem('cat_int_stores_list');
-    this.init();
+  static async updateProduct(id: string, product: Product, formData: FormData): Promise<void> {
+    await fetch(`/api/products/${id}`, { 
+      method: 'PUT', 
+      headers: LocalDatabase.getHeaders(),
+      body: formData 
+    });
+  }
+
+  static async deleteProduct(id: string): Promise<void> {
+    await fetch(`/api/products/${id}`, { 
+      method: 'DELETE',
+      headers: LocalDatabase.getHeaders()
+    });
+  }
+
+  static async getCategories(storeId?: string): Promise<Category[]> {
+    const url = storeId ? `/api/categories?storeId=${storeId}` : '/api/categories';
+    const res = await fetch(url);
+    return res.json();
+  }
+
+  static async createCategory(category: Category, formData: FormData): Promise<void> {
+    await fetch('/api/categories', { 
+      method: 'POST', 
+      headers: LocalDatabase.getHeaders(),
+      body: formData 
+    });
+  }
+
+  static async updateCategory(id: string, category: Category, formData: FormData): Promise<void> {
+    await fetch(`/api/categories/${id}`, { 
+      method: 'PUT', 
+      headers: LocalDatabase.getHeaders(),
+      body: formData 
+    });
+  }
+
+  static async deleteCategory(id: string): Promise<void> {
+    await fetch(`/api/categories/${id}`, { 
+      method: 'DELETE',
+      headers: LocalDatabase.getHeaders()
+    });
+  }
+
+  static async getStore(id: string): Promise<Store | null> {
+    const res = await fetch(`/api/stores/${id}`);
+    if (!res.ok) return null;
+    return res.json();
+  }
+
+  static async getStoreBySlug(slug: string): Promise<Store | null> {
+    const res = await fetch(`/api/stores/slug/${slug}`);
+    if (!res.ok) return null;
+    return res.json();
+  }
+
+  // ===== USERS =====
+  static async getUserProfile(userId: string): Promise<AppUser | null> {
+    const res = await fetch(`/api/users/${userId}`);
+    if (!res.ok) return null;
+    return res.json();
+  }
+
+  static async getUserProfileByEmail(email: string): Promise<AppUser | null> {
+    const res = await fetch(`/api/users/email/${email}`);
+    if (!res.ok) return null;
+    return res.json();
+  }
+
+  static async saveUserProfile(user: AppUser): Promise<void> {
+    await fetch('/api/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(user)
+    });
+  }
+
+  static async getAllUsers(): Promise<AppUser[]> {
+    const res = await fetch('/api/users');
+    if (!res.ok) return [];
+    return res.json();
+  }
+
+  static async createStore(store: Store): Promise<void> {
+    await fetch('/api/stores', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(store)
+    });
+  }
+
+  static async updateStore(id: string, store: Store): Promise<void> {
+    await fetch(`/api/stores/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(store)
+    });
   }
 }

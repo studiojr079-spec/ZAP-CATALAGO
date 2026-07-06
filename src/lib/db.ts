@@ -1,6 +1,5 @@
-// import { collection, doc, getDoc, getDocs, query, where, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
-// import { db } from './firebase';
 import { Store, Product, Category, AppUser, Order, Notification, AnalyticsRecord } from '../types';
+import { LocalDatabase } from './initialData';
 
 // ==========================================
 // STORE FUNCTIONS
@@ -18,19 +17,21 @@ export function generateSlug(name: string): string {
 }
 
 export async function isSlugAvailable(slug: string, currentStoreId?: string): Promise<boolean> {
-  return true;
+  const store = await LocalDatabase.getStoreBySlug(slug);
+  if (!store) return true;
+  return store.id === currentStoreId;
 }
 
 export async function getStoreBySlug(slug: string): Promise<Store | null> {
-  return null;
+  return await LocalDatabase.getStoreBySlug(slug);
 }
 
 export async function getStoreById(storeId: string): Promise<Store | null> {
-  return null;
+  return await LocalDatabase.getStore(storeId);
 }
 
 export async function saveStore(store: Store): Promise<void> {
-  console.log('Save store called (mock)');
+  await LocalDatabase.createStore(store);
 }
 
 // ==========================================
@@ -38,15 +39,24 @@ export async function saveStore(store: Store): Promise<void> {
 // ==========================================
 
 export async function getProducts(storeId: string): Promise<Product[]> {
-  return [];
+  return await LocalDatabase.getProducts(storeId);
 }
 
-export async function saveProduct(product: Product): Promise<void> {
-  console.log('Save product called (mock)');
+export async function saveProduct(product: Product, formData?: FormData): Promise<void> {
+  if (formData) {
+    if (formData.has('existingImages')) {
+      await LocalDatabase.updateProduct(product.id, product, formData);
+    } else {
+      await LocalDatabase.createProduct(product, formData);
+    }
+  } else {
+    // Fallback if no formData (need to handle this)
+    console.warn('saveProduct called without formData');
+  }
 }
 
 export async function deleteProduct(storeId: string, productId: string): Promise<void> {
-  console.log('Delete product called (mock)');
+  await LocalDatabase.deleteProduct(productId);
 }
 
 // ==========================================
@@ -54,16 +64,26 @@ export async function deleteProduct(storeId: string, productId: string): Promise
 // ==========================================
 
 export async function getCategories(storeId: string): Promise<Category[]> {
-  return [];
+  return await LocalDatabase.getCategories(storeId);
 }
 
-export async function saveCategory(category: Category): Promise<void> {
-  console.log('Save category called (mock)');
+export async function saveCategory(category: Category, isUpdate: boolean = false, formData?: FormData): Promise<void> {
+  const data = formData || new FormData();
+  if (!data.has('categoryData')) {
+    data.append('categoryData', JSON.stringify(category));
+  }
+  
+  if (isUpdate) {
+    await LocalDatabase.updateCategory(category.id, category, data);
+  } else {
+    await LocalDatabase.createCategory(category, data);
+  }
 }
 
 export async function deleteCategory(storeId: string, categoryId: string): Promise<void> {
-  console.log('Delete category called (mock)');
+  await LocalDatabase.deleteCategory(categoryId);
 }
+// ...
 
 // ==========================================
 // ORDER FUNCTIONS
@@ -110,26 +130,28 @@ export async function saveAnalytics(analytics: AnalyticsRecord): Promise<void> {
 // ==========================================
 
 export async function getUserProfile(userId: string): Promise<AppUser | null> {
-  return null;
+  return await LocalDatabase.getUserProfile(userId);
 }
 
 export async function saveUserProfile(user: AppUser): Promise<void> {
-  console.log('Save user profile called (mock)');
+  await LocalDatabase.saveUserProfile(user);
 }
 
 export async function getUserProfileByEmail(email: string): Promise<AppUser | null> {
-  return null;
+  return await LocalDatabase.getUserProfileByEmail(email);
 }
 
 // ==========================================
 // MASTER ADMIN FUNCTIONS
 // ==========================================
 export async function getAllUsers(): Promise<AppUser[]> {
-  return [];
+  return await LocalDatabase.getAllUsers();
 }
 
 export async function getAllStores(): Promise<Store[]> {
-  return [];
+  const res = await fetch('/api/stores');
+  if (!res.ok) return [];
+  return res.json();
 }
 
 export async function deleteUserProfile(userId: string): Promise<void> {

@@ -163,7 +163,7 @@ export default function SubscriptionsView({ subscription, onUpdateSubscription }
                 <div>
                   <h4 className="text-base font-black text-white">{plan.name}</h4>
                   <div className="flex items-baseline gap-1 mt-2">
-                    <span className="text-2xl font-black text-white">R$ {displayPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                    <span className="text-2xl font-black text-white">R$ {(displayPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                     <span className="text-[10px] text-[#8E8E93] font-bold">/{billingCycle === 'anual' ? 'ano' : 'mês'}</span>
                   </div>
                 </div>
