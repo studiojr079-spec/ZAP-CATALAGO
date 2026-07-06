@@ -14,7 +14,8 @@ export default function TemplateClean({
   setShowAboutModal,
   setShowCartModal,
   cartCount,
-  customBanners
+  customBanners,
+  setSelectedProduct
 }: CatalogTemplateProps) {
   const activeBanner = customBanners?.[0]?.image || store.banner || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=1000&fit=crop";
 
@@ -104,7 +105,11 @@ export default function TemplateClean({
 
         <div className="grid grid-cols-2 gap-4">
           {filteredProducts.map(product => (
-            <div key={product.id} className="bg-white rounded-3xl overflow-hidden shadow-sm border border-stone-100">
+            <div 
+              key={product.id} 
+              className="bg-white rounded-3xl overflow-hidden shadow-sm border border-stone-100 cursor-pointer"
+              onClick={() => setSelectedProduct?.(product)}
+            >
               <div className="aspect-square bg-stone-100">
                 {product.images && product.images[0] && (
                   <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
@@ -119,7 +124,10 @@ export default function TemplateClean({
                     <p className="text-lg font-bold text-[#FF2D7A] mt-1">R$ {product.price.toFixed(2)}</p>
                 )}
                 <button 
-                  onClick={() => handleEuQuero(product)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleEuQuero(product);
+                  }}
                   className="mt-3 w-full py-2 bg-[#22C55E] text-white text-xs font-bold rounded-full uppercase tracking-widest transition active:scale-95"
                 >
                   Eu Quero

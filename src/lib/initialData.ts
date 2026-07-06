@@ -441,11 +441,15 @@ export const INITIAL_SUBSCRIPTION: UserSubscription = {
 
 // State Manager for API interaction
 export class LocalDatabase {
-  static getHeaders() {
-    const token = localStorage.getItem('token');
-    return {
-      'Authorization': token ? `Bearer ${token}` : ''
-    };
+  static getHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {};
+    if (typeof localStorage !== 'undefined') {
+      const token = localStorage.getItem('token');
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+    }
+    return headers;
   }
 
   static async getProducts(storeId?: string): Promise<Product[]> {
@@ -455,26 +459,35 @@ export class LocalDatabase {
   }
 
   static async createProduct(product: Product, formData: FormData): Promise<void> {
-    await fetch('/api/products', { 
+    const res = await fetch('/api/products', { 
       method: 'POST', 
       headers: LocalDatabase.getHeaders(),
       body: formData 
     });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`Failed to create product: ${res.status} ${text}`);
+    }
   }
 
   static async updateProduct(id: string, product: Product, formData: FormData): Promise<void> {
-    await fetch(`/api/products/${id}`, { 
+    const res = await fetch(`/api/products/${id}`, { 
       method: 'PUT', 
       headers: LocalDatabase.getHeaders(),
       body: formData 
     });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`Failed to update product: ${res.status} ${text}`);
+    }
   }
 
   static async deleteProduct(id: string): Promise<void> {
-    await fetch(`/api/products/${id}`, { 
+    const res = await fetch(`/api/products/${id}`, { 
       method: 'DELETE',
       headers: LocalDatabase.getHeaders()
     });
+    if (!res.ok) throw new Error('Failed to delete product');
   }
 
   static async getCategories(storeId?: string): Promise<Category[]> {
@@ -484,26 +497,29 @@ export class LocalDatabase {
   }
 
   static async createCategory(category: Category, formData: FormData): Promise<void> {
-    await fetch('/api/categories', { 
+    const res = await fetch('/api/categories', { 
       method: 'POST', 
       headers: LocalDatabase.getHeaders(),
       body: formData 
     });
+    if (!res.ok) throw new Error('Failed to create category');
   }
 
   static async updateCategory(id: string, category: Category, formData: FormData): Promise<void> {
-    await fetch(`/api/categories/${id}`, { 
+    const res = await fetch(`/api/categories/${id}`, { 
       method: 'PUT', 
       headers: LocalDatabase.getHeaders(),
       body: formData 
     });
+    if (!res.ok) throw new Error('Failed to update category');
   }
 
   static async deleteCategory(id: string): Promise<void> {
-    await fetch(`/api/categories/${id}`, { 
+    const res = await fetch(`/api/categories/${id}`, { 
       method: 'DELETE',
       headers: LocalDatabase.getHeaders()
     });
+    if (!res.ok) throw new Error('Failed to delete category');
   }
 
   static async getStore(id: string): Promise<Store | null> {
@@ -532,11 +548,12 @@ export class LocalDatabase {
   }
 
   static async saveUserProfile(user: AppUser): Promise<void> {
-    await fetch('/api/users', {
+    const res = await fetch('/api/users', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(user)
     });
+    if (!res.ok) throw new Error('Failed to save user profile');
   }
 
   static async getAllUsers(): Promise<AppUser[]> {
@@ -546,18 +563,20 @@ export class LocalDatabase {
   }
 
   static async createStore(store: Store): Promise<void> {
-    await fetch('/api/stores', {
+    const res = await fetch('/api/stores', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(store)
     });
+    if (!res.ok) throw new Error('Failed to create store');
   }
 
   static async updateStore(id: string, store: Store): Promise<void> {
-    await fetch(`/api/stores/${id}`, {
+    const res = await fetch(`/api/stores/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(store)
     });
+    if (!res.ok) throw new Error('Failed to update store');
   }
 }

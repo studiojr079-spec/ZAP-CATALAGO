@@ -53,6 +53,20 @@ db.exec(`
     email TEXT UNIQUE,
     data TEXT
   );
+  CREATE TABLE IF NOT EXISTS orders (
+    id TEXT PRIMARY KEY,
+    storeId TEXT,
+    data TEXT
+  );
+  CREATE TABLE IF NOT EXISTS notifications (
+    id TEXT PRIMARY KEY,
+    storeId TEXT,
+    data TEXT
+  );
+  CREATE TABLE IF NOT EXISTS analytics (
+    storeId TEXT PRIMARY KEY,
+    data TEXT
+  );
 `);
 
 // Multer setup
@@ -64,7 +78,13 @@ const storage = multer.diskStorage({
     cb(null, Date.now() + path.extname(file.originalname));
   },
 });
-const upload = multer({ storage });
+const upload = multer({ 
+  storage,
+  limits: {
+    fieldSize: 10 * 1024 * 1024, // 10MB limit for text fields
+    fileSize: 50 * 1024 * 1024 // 50MB limit for files
+  }
+});
 
 // Middleware to parse JSON
 app.use(express.json());
@@ -87,70 +107,98 @@ app.get("/api/products", (req, res) => {
 });
 
 app.post("/api/products", upload.array("images"), (req, res) => {
-  const product = JSON.parse(req.body.productData);
-  const files = req.files as Express.Multer.File[];
-  const newImageUrls = files.map(file => `/uploads/${file.filename}`);
-  const existingImages = req.body.existingImages ? JSON.parse(req.body.existingImages) : [];
-  const imageUrls = [...existingImages, ...newImageUrls];
-  
-  const stmt = db.prepare(`
-    INSERT INTO products (id, storeId, name, categoryId, description, price, promoPrice, length, color, stock, featured, hidden, showPrice, images, video, views, clicks, "order")
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-  stmt.run(
-    product.id ?? null,
-    product.storeId ?? null,
-    product.name ?? null,
-    product.categoryId ?? null,
-    product.description ?? null,
-    product.price ?? null, 
-    product.promoPrice ?? null,
-    product.length ?? null,
-    product.color ?? null,
-    product.stock ?? null,
-    product.featured ? 1 : 0, 
-    product.hidden ? 1 : 0,
-    product.showPrice ? 1 : 0,
-    JSON.stringify(imageUrls),
-    product.video ?? null, 
-    product.views ?? null,
-    product.clicks ?? null,
-    product.order ?? null
-  );
-  res.json({ success: true });
+  try {
+    const product = JSON.parse(req.body.productData || '{}');
+    const files = req.files as Express.Multer.File[] || [];
+    const newImageUrls = files.map(file => `/uploads/${file.filename}`);
+    
+    let existingImages = [];
+    if (req.body.existingImages && req.body.existingImages !== 'undefined') {
+      try {
+        const parsed = JSON.parse(req.body.existingImages);
+        if (Array.isArray(parsed)) existingImages = parsed;
+      } catch (e) {
+        console.error("Failed to parse existingImages", e);
+      }
+    }
+    const imageUrls = [...existingImages, ...newImageUrls];
+      
+    const stmt = db.prepare(`
+      INSERT OR REPLACE INTO products (id, storeId, name, categoryId, description, price, promoPrice, length, color, stock, featured, hidden, showPrice, images, video, views, clicks, "order")
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    stmt.run(
+      product.id ?? null,
+      product.storeId ?? null,
+      product.name ?? null,
+      product.categoryId ?? null,
+      product.description ?? null,
+      product.price ?? null, 
+      product.promoPrice ?? null,
+      product.length ?? null,
+      product.color ?? null,
+      product.stock ?? null,
+      product.featured ? 1 : 0, 
+      product.hidden ? 1 : 0,
+      product.showPrice ? 1 : 0,
+      JSON.stringify(imageUrls),
+      product.video ?? null, 
+      product.views ?? 0,
+      product.clicks ?? 0,
+      product.order ?? 0
+    );
+    res.json({ success: true });
+  } catch (e: any) {
+    console.error("Error in POST /api/products:", e);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 app.put("/api/products/:id", upload.array("images"), (req, res) => {
-  const product = JSON.parse(req.body.productData);
-  const files = req.files as Express.Multer.File[];
-  const newImageUrls = files.map(file => `/uploads/${file.filename}`);
-  const existingImages = req.body.existingImages ? JSON.parse(req.body.existingImages) : [];
-  const imageUrls = [...existingImages, ...newImageUrls];
+  try {
+    const product = JSON.parse(req.body.productData || '{}');
+    const files = req.files as Express.Multer.File[] || [];
+    const newImageUrls = files.map(file => `/uploads/${file.filename}`);
+    
+    let existingImages = [];
+    if (req.body.existingImages && req.body.existingImages !== 'undefined') {
+      try {
+        const parsed = JSON.parse(req.body.existingImages);
+        if (Array.isArray(parsed)) existingImages = parsed;
+      } catch (e) {
+        console.error("Failed to parse existingImages", e);
+      }
+    }
+    const imageUrls = [...existingImages, ...newImageUrls];
 
-  const stmt = db.prepare(`
-    UPDATE products SET 
-      storeId=?, name=?, categoryId=?, description=?, price=?, promoPrice=?, length=?, color=?, stock=?, featured=?, hidden=?, showPrice=?, images=?, video=?, "order"=?
-    WHERE id=?
-  `);
-  stmt.run(
-    product.storeId ?? null,
-    product.name ?? null,
-    product.categoryId ?? null,
-    product.description ?? null,
-    product.price ?? null, 
-    product.promoPrice ?? null,
-    product.length ?? null,
-    product.color ?? null,
-    product.stock ?? null,
-    product.featured ? 1 : 0, 
-    product.hidden ? 1 : 0,
-    product.showPrice ? 1 : 0,
-    JSON.stringify(imageUrls),
-    product.video ?? null, 
-    product.order ?? null,
-    req.params.id
-  );
-  res.json({ success: true });
+    const stmt = db.prepare(`
+      UPDATE products SET 
+        storeId=?, name=?, categoryId=?, description=?, price=?, promoPrice=?, length=?, color=?, stock=?, featured=?, hidden=?, showPrice=?, images=?, video=?, "order"=?
+      WHERE id=?
+    `);
+    stmt.run(
+      product.storeId ?? null,
+      product.name ?? null,
+      product.categoryId ?? null,
+      product.description ?? null,
+      product.price ?? null, 
+      product.promoPrice ?? null,
+      product.length ?? null,
+      product.color ?? null,
+      product.stock ?? null,
+      product.featured ? 1 : 0, 
+      product.hidden ? 1 : 0,
+      product.showPrice ? 1 : 0,
+      JSON.stringify(imageUrls),
+      product.video ?? null, 
+      product.order ?? 0,
+      req.params.id
+    );
+    res.json({ success: true });
+  } catch (e: any) {
+    console.error("Error in PUT /api/products:", e);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 app.delete("/api/products/:id", (req, res) => {
@@ -167,26 +215,36 @@ app.get("/api/categories", (req, res) => {
 });
 
 app.post("/api/categories", upload.single("image"), (req, res) => {
-  const category = JSON.parse(req.body.categoryData);
-  const image = req.file ? `/uploads/${req.file.filename}` : category.image;
-
-  const stmt = db.prepare(`
-    INSERT INTO categories (id, storeId, name, image, "order")
-    VALUES (?, ?, ?, ?, ?)
-  `);
-  stmt.run(category.id, category.storeId, category.name, image, category.order);
-  res.json({ success: true });
+  try {
+    const category = JSON.parse(req.body.categoryData || '{}');
+    const image = req.file ? `/uploads/${req.file.filename}` : category.image;
+  
+    const stmt = db.prepare(`
+      INSERT OR REPLACE INTO categories (id, storeId, name, image, "order")
+      VALUES (?, ?, ?, ?, ?)
+    `);
+    stmt.run(category.id, category.storeId, category.name, image, category.order);
+    res.json({ success: true });
+  } catch (e: any) {
+    console.error("Error in POST /api/categories:", e);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 app.put("/api/categories/:id", upload.single("image"), (req, res) => {
-  const category = JSON.parse(req.body.categoryData);
-  const image = req.file ? `/uploads/${req.file.filename}` : category.image;
-
-  const stmt = db.prepare(`
-    UPDATE categories SET storeId=?, name=?, image=?, "order"=? WHERE id=?
-  `);
-  stmt.run(category.storeId, category.name, image, category.order, req.params.id);
-  res.json({ success: true });
+  try {
+    const category = JSON.parse(req.body.categoryData || '{}');
+    const image = req.file ? `/uploads/${req.file.filename}` : category.image;
+  
+    const stmt = db.prepare(`
+      UPDATE categories SET storeId=?, name=?, image=?, "order"=? WHERE id=?
+    `);
+    stmt.run(category.storeId, category.name, image, category.order, req.params.id);
+    res.json({ success: true });
+  } catch (e: any) {
+    console.error("Error in PUT /api/categories:", e);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 app.get("/api/stores", (req: any, res: any) => {
@@ -256,6 +314,48 @@ app.post("/api/users", (req, res) => {
     VALUES (?, ?, ?)
   `);
   stmt.run(user.id, user.email, JSON.stringify(user));
+  res.json({ success: true });
+});
+
+// ===== ORDERS API =====
+app.get("/api/orders", (req, res) => {
+  const { storeId } = req.query;
+  const orders = storeId 
+    ? db.prepare("SELECT * FROM orders WHERE storeId = ?").all(storeId) as any[]
+    : db.prepare("SELECT * FROM orders").all() as any[];
+  res.json(orders.map(o => JSON.parse(o.data)));
+});
+app.post("/api/orders", (req, res) => {
+  const order = req.body;
+  const stmt = db.prepare(`INSERT OR REPLACE INTO orders (id, storeId, data) VALUES (?, ?, ?)`);
+  stmt.run(order.id, order.storeId, JSON.stringify(order));
+  res.json({ success: true });
+});
+
+// ===== NOTIFICATIONS API =====
+app.get("/api/notifications", (req, res) => {
+  const { storeId } = req.query;
+  const notifs = storeId 
+    ? db.prepare("SELECT * FROM notifications WHERE storeId = ?").all(storeId) as any[]
+    : db.prepare("SELECT * FROM notifications").all() as any[];
+  res.json(notifs.map(n => JSON.parse(n.data)));
+});
+app.post("/api/notifications", (req, res) => {
+  const notif = req.body;
+  const stmt = db.prepare(`INSERT OR REPLACE INTO notifications (id, storeId, data) VALUES (?, ?, ?)`);
+  stmt.run(notif.id, notif.storeId, JSON.stringify(notif));
+  res.json({ success: true });
+});
+
+// ===== ANALYTICS API =====
+app.get("/api/analytics/:storeId", (req, res) => {
+  const row = db.prepare("SELECT * FROM analytics WHERE storeId = ?").get(req.params.storeId) as any;
+  res.json(row ? JSON.parse(row.data) : null);
+});
+app.post("/api/analytics", (req, res) => {
+  const analytics = req.body;
+  const stmt = db.prepare(`INSERT OR REPLACE INTO analytics (storeId, data) VALUES (?, ?)`);
+  stmt.run(analytics.storeId, JSON.stringify(analytics));
   res.json({ success: true });
 });
 

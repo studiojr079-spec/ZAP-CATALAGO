@@ -137,55 +137,59 @@ export default function CatalogView({ store, products, categories, onBackToDashb
       return;
     }
 
-    // 1. Log click in orders database
-    const now = new Date();
-    const newOrder: Order = {
-      id: 'ord_' + Math.random().toString(36).substr(2, 9),
-      storeId: store.id,
-      productId: product.id,
-      productName: product.name,
-      productPrice: product.price,
-      date: now.toISOString().split('T')[0],
-      time: now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-      source: 'WhatsApp Link',
-      status: 'Pendente',
-      notes: `Clique originado do botão "EU QUERO" no catálogo público.`
-    };
-    await saveOrder(newOrder);
-
-    // 2. Increment click analytics
-    const analytics = await getAnalytics(store.id);
-    if (analytics) {
-      analytics.clicks = (analytics.clicks || 0) + 1;
-      await saveAnalytics(analytics);
-    } else {
-      await saveAnalytics({
+    try {
+      // 1. Log click in orders database
+      const now = new Date();
+      const newOrder: Order = {
+        id: 'ord_' + Math.random().toString(36).substr(2, 9),
         storeId: store.id,
-        views: 0,
-        clicks: 1,
-        uniqueVisitors: 0,
-        devices: { mobile: 0, tablet: 0, desktop: 0 },
-        origins: { direct: 0, whatsapp: 0, instagram: 0, tiktok: 0, google: 0 },
-        locations: [],
-        dailyMetrics: []
-      });
+        productId: product.id,
+        productName: product.name,
+        productPrice: product.price,
+        date: now.toISOString().split('T')[0],
+        time: now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+        source: 'WhatsApp Link',
+        status: 'Pendente',
+        notes: `Clique originado do botão "EU QUERO" no catálogo público.`
+      };
+      await saveOrder(newOrder);
+
+      // 2. Increment click analytics
+      const analytics = await getAnalytics(store.id);
+      if (analytics) {
+        analytics.clicks = (analytics.clicks || 0) + 1;
+        await saveAnalytics(analytics);
+      } else {
+        await saveAnalytics({
+          storeId: store.id,
+          views: 0,
+          clicks: 1,
+          uniqueVisitors: 0,
+          devices: { mobile: 0, tablet: 0, desktop: 0 },
+          origins: { direct: 0, whatsapp: 0, instagram: 0, tiktok: 0, google: 0 },
+          locations: [],
+          dailyMetrics: []
+        });
+      }
+
+      // Increment clicks on this specific product
+      product.clicks = (product.clicks || 0) + 1;
+      await saveProduct(product);
+
+      // 3. Trigger a real notification
+      const newNotification: Notification = {
+        id: 'not_' + Math.random().toString(36).substr(2, 9),
+        storeId: store.id,
+        type: 'click',
+        title: 'Novo clique no WhatsApp!',
+        description: `Alguém se interessou pelo produto "${product.name}"!`,
+        date: now.toISOString(),
+        read: false
+      };
+      await saveNotification(newNotification);
+    } catch (e) {
+      console.error('Error logging analytics/orders:', e);
     }
-
-    // Increment clicks on this specific product
-    product.clicks = (product.clicks || 0) + 1;
-    await saveProduct(product);
-
-    // 3. Trigger a real notification
-    const newNotification: Notification = {
-      id: 'not_' + Math.random().toString(36).substr(2, 9),
-      storeId: store.id,
-      type: 'click',
-      title: 'Novo clique no WhatsApp!',
-      description: `Alguém se interessou pelo produto "${product.name}"!`,
-      date: now.toISOString(),
-      read: false
-    };
-    await saveNotification(newNotification);
 
     // 4. Construct WhatsApp Message URL
     const formattedPrice = ((product.promoPrice || product.price) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
@@ -230,7 +234,8 @@ export default function CatalogView({ store, products, categories, onBackToDashb
     setShowCartModal,
     cartCount,
     customBanners,
-    addToCart 
+    addToCart,
+    setSelectedProduct
   };
 
   const finalizeOrder = async () => {
@@ -244,24 +249,29 @@ export default function CatalogView({ store, products, categories, onBackToDashb
     const total = cartItems.reduce((acc, item) => acc + ((item.price || 0) * item.quantity), 0);
     const formattedTotal = total.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
 
-    // 1. Log analytics for the whole order
-    const now = new Date();
     const orderId = 'ORD_' + Math.random().toString(36).substr(2, 6).toUpperCase();
-    
-    for (const item of cartItems) {
-      const newOrder: Order = {
-        id: orderId + '_' + item.productId,
-        storeId: store.id,
-        productId: item.productId,
-        productName: item.name,
-        productPrice: item.price,
-        date: now.toISOString().split('T')[0],
-        time: now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-        source: 'WhatsApp Cart',
-        status: 'Pendente',
-        notes: `Pedido de ${item.quantity}x ${item.name} via carrinho.`
-      };
-      await saveOrder(newOrder);
+
+    try {
+      // 1. Log analytics for the whole order
+      const now = new Date();
+      
+      for (const item of cartItems) {
+        const newOrder: Order = {
+          id: orderId + '_' + item.productId,
+          storeId: store.id,
+          productId: item.productId,
+          productName: item.name,
+          productPrice: item.price,
+          date: now.toISOString().split('T')[0],
+          time: now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+          source: 'WhatsApp Cart',
+          status: 'Pendente',
+          notes: `Pedido de ${item.quantity}x ${item.name} via carrinho.`
+        };
+        await saveOrder(newOrder);
+      }
+    } catch (e) {
+      console.error('Error saving orders:', e);
     }
 
     //Construct Message
@@ -394,6 +404,62 @@ export default function CatalogView({ store, products, categories, onBackToDashb
             >
               Fechar
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Product Details Modal */}
+      {selectedProduct && (
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 sm:items-center p-4">
+          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl overflow-hidden relative max-h-[90vh] flex flex-col">
+            <button 
+              onClick={() => setSelectedProduct(null)}
+              className="absolute top-4 right-4 w-8 h-8 bg-black/50 text-white rounded-full flex items-center justify-center z-10 active:scale-95"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <div className="aspect-square bg-gray-100 relative shrink-0">
+              {selectedProduct.images && selectedProduct.images.length > 0 ? (
+                <img src={selectedProduct.images[0]} alt={selectedProduct.name} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-gray-400 font-medium">Sem imagem</div>
+              )}
+            </div>
+            <div className="p-6 overflow-y-auto">
+              <h2 className="text-xl font-bold text-gray-900 mb-2 leading-tight">{selectedProduct.name}</h2>
+              {selectedProduct.showPrice !== false && (
+                <div className="text-2xl font-black text-[#FF2D7A] mb-4">
+                  R$ {(selectedProduct.promoPrice || selectedProduct.price).toFixed(2).replace('.', ',')}
+                </div>
+              )}
+              {selectedProduct.description && (
+                <div className="mb-6">
+                  <h3 className="text-sm font-bold text-gray-900 mb-2 uppercase tracking-wider">Descrição</h3>
+                  <p className="text-sm text-gray-600 whitespace-pre-line">{selectedProduct.description}</p>
+                </div>
+              )}
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => {
+                    handleEuQuero(selectedProduct);
+                    setSelectedProduct(null);
+                  }}
+                  className="flex-1 py-4 bg-[#25D366] text-white font-black rounded-2xl flex items-center justify-center gap-2 uppercase tracking-widest active:scale-95 transition"
+                >
+                  <MessageCircle className="w-5 h-5" />
+                  Chamar no WhatsApp
+                </button>
+                <button
+                  onClick={() => {
+                    addToCart(selectedProduct);
+                    setSelectedProduct(null);
+                  }}
+                  className="w-14 h-14 bg-[#FF2D7A] text-white rounded-2xl flex items-center justify-center active:scale-95 transition"
+                >
+                  <ShoppingCart className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

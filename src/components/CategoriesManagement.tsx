@@ -50,7 +50,7 @@ export default function CategoriesManagement({
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name || typeof name !== 'string' || !name.trim()) return;
 
     // Check unique category name constraint
     const isDuplicate = categories.some(
@@ -68,8 +68,8 @@ export default function CategoriesManagement({
       const categoryData: Category = {
         id: editingCategory ? editingCategory.id : 'cat_' + Math.random().toString(36).substr(2, 9),
         storeId: editingCategory ? editingCategory.storeId : (storeId || 'store_default'),
-        name: name.trim().toUpperCase(), // Uppercase category matching Image 1 circular labels
-        image: image.trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+        name: (typeof name === 'string' ? name.trim().toUpperCase() : ''), // Uppercase category matching Image 1 circular labels
+        image: (typeof image === 'string' ? image.trim() : '') || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
         order: editingCategory ? editingCategory.order : categories.length
       };
 

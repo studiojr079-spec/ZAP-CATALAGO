@@ -43,16 +43,16 @@ export async function getProducts(storeId: string): Promise<Product[]> {
 }
 
 export async function saveProduct(product: Product, formData?: FormData): Promise<void> {
-  if (formData) {
-    if (formData.has('existingImages')) {
-      await LocalDatabase.updateProduct(product.id, product, formData);
-    } else {
-      await LocalDatabase.createProduct(product, formData);
-    }
-  } else {
-    // Fallback if no formData (need to handle this)
-    console.warn('saveProduct called without formData');
+  const data = formData || new FormData();
+  if (!data.has('productData')) {
+    data.append('productData', JSON.stringify(product));
   }
+  if (!data.has('existingImages')) {
+    data.append('existingImages', JSON.stringify(product.images || []));
+  }
+  
+  // POST endpoint uses INSERT OR REPLACE so it safely handles both creates and updates
+  await LocalDatabase.createProduct(product, data);
 }
 
 export async function deleteProduct(storeId: string, productId: string): Promise<void> {
@@ -73,11 +73,7 @@ export async function saveCategory(category: Category, isUpdate: boolean = false
     data.append('categoryData', JSON.stringify(category));
   }
   
-  if (isUpdate) {
-    await LocalDatabase.updateCategory(category.id, category, data);
-  } else {
-    await LocalDatabase.createCategory(category, data);
-  }
+  await LocalDatabase.createCategory(category, data);
 }
 
 export async function deleteCategory(storeId: string, categoryId: string): Promise<void> {
@@ -90,15 +86,25 @@ export async function deleteCategory(storeId: string, categoryId: string): Promi
 // ==========================================
 
 export async function getOrderById(storeId: string, orderId: string): Promise<Order | null> {
-  return null;
+  const res = await fetch(`/api/orders?storeId=${storeId}`);
+  if (!res.ok) return null;
+  const orders = await res.json();
+  return orders.find((o: Order) => o.id === orderId) || null;
 }
 
 export async function getOrders(storeId: string): Promise<Order[]> {
-  return [];
+  const res = await fetch(`/api/orders?storeId=${storeId}`);
+  if (!res.ok) return [];
+  return res.json();
 }
 
 export async function saveOrder(order: Order): Promise<void> {
-  console.log('Save order called (mock)');
+  const res = await fetch('/api/orders', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(order)
+  });
+  if (!res.ok) throw new Error('Failed to save order');
 }
 
 // ==========================================
@@ -106,11 +112,18 @@ export async function saveOrder(order: Order): Promise<void> {
 // ==========================================
 
 export async function getNotifications(storeId: string): Promise<Notification[]> {
-  return [];
+  const res = await fetch(`/api/notifications?storeId=${storeId}`);
+  if (!res.ok) return [];
+  return res.json();
 }
 
 export async function saveNotification(notification: Notification): Promise<void> {
-  console.log('Save notification called (mock)');
+  const res = await fetch('/api/notifications', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(notification)
+  });
+  if (!res.ok) throw new Error('Failed to save notification');
 }
 
 // ==========================================
@@ -118,11 +131,18 @@ export async function saveNotification(notification: Notification): Promise<void
 // ==========================================
 
 export async function getAnalytics(storeId: string): Promise<AnalyticsRecord | null> {
-  return null;
+  const res = await fetch(`/api/analytics/${storeId}`);
+  if (!res.ok) return null;
+  return res.json();
 }
 
 export async function saveAnalytics(analytics: AnalyticsRecord): Promise<void> {
-  console.log('Save analytics called (mock)');
+  const res = await fetch('/api/analytics', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(analytics)
+  });
+  if (!res.ok) throw new Error('Failed to save analytics');
 }
 
 // ==========================================
@@ -155,9 +175,9 @@ export async function getAllStores(): Promise<Store[]> {
 }
 
 export async function deleteUserProfile(userId: string): Promise<void> {
-  console.log('Delete user profile called (mock)');
+  console.warn('deleteUserProfile not implemented fully yet');
 }
 
 export async function deleteStore(storeId: string): Promise<void> {
-  console.log('Delete store called (mock)');
+  console.warn('deleteStore not implemented fully yet');
 }

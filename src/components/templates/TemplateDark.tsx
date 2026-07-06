@@ -14,7 +14,8 @@ export default function TemplateDark({
   setShowAboutModal,
   setShowCartModal,
   cartCount,
-  customBanners
+  customBanners,
+  setSelectedProduct
 }: CatalogTemplateProps) {
 
   const activeBanner = customBanners?.[0]?.image || store.banner || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=1000&fit=crop";
@@ -146,7 +147,8 @@ export default function TemplateDark({
                 return (
                   <div 
                     key={product.id} 
-                    className="bg-[#1A1720] rounded-2xl overflow-hidden flex flex-col"
+                    className="bg-[#1A1720] rounded-2xl overflow-hidden flex flex-col cursor-pointer"
+                    onClick={() => setSelectedProduct?.(product)}
                   >
                     <div className="aspect-[4/5] bg-zinc-900 relative">
                       {product.images && product.images.length > 0 ? (
@@ -181,7 +183,10 @@ export default function TemplateDark({
                       )}
                       
                       <button 
-                        onClick={() => handleEuQuero(product)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEuQuero(product);
+                        }}
                         className="w-full py-4 bg-[#22C55E] text-white text-[11px] font-black rounded-2xl active:scale-95 transition shadow-lg shadow-[#22C55E]/10 uppercase tracking-widest flex items-center justify-center gap-2"
                       >
                         <ShoppingCart className="w-4 h-4" />

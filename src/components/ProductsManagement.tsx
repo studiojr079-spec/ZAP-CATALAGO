@@ -44,7 +44,7 @@ export default function ProductsManagement({
   const [showPrice, setShowPrice] = useState(true);
   const [images, setImages] = useState<File[]>([]);
   const [existingImages, setExistingImages] = useState<string[]>([]);
-  const [video, setVideo] = useState<File | null>(null);
+  const [video, setVideo] = useState<string | null>(null);
   const [fileError, setFileError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
@@ -71,7 +71,7 @@ export default function ProductsManagement({
     setShowPrice(product.showPrice ?? true);
     setExistingImages(product.images);
     setImages([]);
-    setVideo(null);
+    setVideo(product.video || null);
     setFileError('');
   };
 
@@ -155,26 +155,26 @@ export default function ProductsManagement({
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name || typeof name !== 'string' || !name.trim()) return;
     setIsSaving(true);
 
     try {
       const productData: Product = {
         id: editingProduct ? editingProduct.id : 'prod_' + Math.random().toString(36).substr(2, 9),
         storeId: editingProduct ? editingProduct.storeId : (storeId || 'store_default'),
-        name: name.trim(),
+        name: typeof name === 'string' ? name.trim() : '',
         categoryId: categoryId,
-        description: description.trim(),
+        description: typeof description === 'string' ? description.trim() : '',
         price: Number(price),
         promoPrice: promoPrice ? Number(promoPrice) : undefined,
-        length: length.trim() || undefined,
-        color: color.trim() || undefined,
+        length: typeof length === 'string' ? (length.trim() || undefined) : undefined,
+        color: typeof color === 'string' ? (color.trim() || undefined) : undefined,
         stock: Number(stock),
         featured: featured,
         hidden: hidden,
         showPrice: showPrice,
         images: [], 
-        video: undefined, 
+        video: typeof video === 'string' ? (video.trim() || undefined) : undefined,
         views: editingProduct ? editingProduct.views : 0,
         clicks: editingProduct ? editingProduct.clicks : 0,
         order: editingProduct ? editingProduct.order : products.length
@@ -184,7 +184,6 @@ export default function ProductsManagement({
       formData.append('productData', JSON.stringify(productData));
       images.forEach(file => formData.append('images', file));
       formData.append('existingImages', JSON.stringify(existingImages));
-      if (video) formData.append('video', video);
 
       if (editingProduct) {
         await LocalDatabase.updateProduct(editingProduct.id, productData, formData);

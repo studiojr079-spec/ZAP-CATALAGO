@@ -18,4 +18,5 @@ export interface CatalogTemplateProps {
   setShowCartModal: (show: boolean) => void;
   cartCount: number;
   customBanners: StoreBanner[];
+  setSelectedProduct?: (product: Product | null) => void;
 }
